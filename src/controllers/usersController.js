@@ -1,4 +1,4 @@
-const { hash } = require("bcryptjs");
+const { hash, compare } = require("bcryptjs");
 const AppError = require("../utils/Apperror");
 const sqliteConnection = require("../database/sqlite");
 
@@ -14,11 +14,14 @@ class UsersController {
   }
  
 
-  const hashedPassword = await hash(password, 8)
+ const hashedPassword = await hash(password, 8)
 
-   await database.run("INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-   [name, email, hashedPassword]
-   );
+   await database.run(
+      "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
+      [name, email, hashedPassword]
+    )
+
+
 
    return response.status(201).json();
   }
@@ -43,18 +46,28 @@ class UsersController {
     user.email = email;
 
     if(password && !old_password) {
-      throw new AppError("Voce precisa informar a senha antiga para definir a nova senha.")
-    }
+      throw new AppError("Você informar a senha antiga para definir a nova senha")
+     }
 
-    await database.run(`
-    UPDATE users SET
-    name = ?,
-    email = ?,
-    updated_at = ?
-    WHERE id = ?`,
-    [user.name, user.email, new Date(), user.id]
-    );
+     if(password && old_password) {
+      const checkOldPassword = await compare(old_password, user.password)
 
+      if(!checkOldPassword) {
+        throw new AppError("A senha antiga não confere.")
+      }
+
+      user.password = await hash(password, 8)
+     }
+
+     await database.run(`
+      UPDATE users SET
+      name = ?,
+      email = ?,
+      password = ?,
+      updated_at = ?
+      WHERE id = ?`, 
+      [user.name, user.email, user.password, new Date(), id]
+    )
     return response.status(200).json()
   }
 }
